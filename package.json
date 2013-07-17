@@ -1,6 +1,6 @@
 {
   "name": "amd-to-closure",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Transform AMD modules to Google Closure modules",
   "main": "index.js",
   "directories": {
