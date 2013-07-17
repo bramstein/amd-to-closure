@@ -1,0 +1,27 @@
+{
+  "name": "amd-to-closure",
+  "version": "0.1.0",
+  "description": "Transform AMD modules to Google Closure modules",
+  "main": "index.js",
+  "directories": {
+    "test": "test",
+    "bin": "bin"
+  },
+  "dependencies": {
+    "escodegen": "~0.0.24",
+    "esprima": "~1.0.3",
+    "estraverse": "~1.1.2-1",
+    "through": "~2.3.4"
+  },
+  "devDependencies": {
+    "expect.js": "=0.2.0",
+    "mocha": "=1.12.0",
+    "event-stream": "=3.0.16"
+  },
+  "scripts": {
+    "test": "mocha --reporter spec"
+  },
+  "repository": "",
+  "author": "Bram Stein <b.l.stein@gmail.com> (http://www.bramstein.com)",
+  "license": "BSD"
+}

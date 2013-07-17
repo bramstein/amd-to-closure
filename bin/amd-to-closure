@@ -1,0 +1,14 @@
+#!/usr/bin/env node
+
+var transform = require('../index'),
+    fs = require('fs'),
+    baseUrl = process.argv[2],
+    file = process.argv[3];
+
+var inputStream = fs.createReadStream(file),
+    transformStream = transform(file, {
+      baseUrl: baseUrl
+    });
+
+inputStream.pipe(transformStream);
+transformStream.pipe(process.stdout);
