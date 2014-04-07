@@ -205,7 +205,7 @@ function transformDefinition(baseUrl, id, dependencies, factory, ast) {
 
 function pathToNamespace(base, file) {
   // FIXME: Make this more robust
-  var p = path.normalize(path.relative(base, file));
+  var p = path.normalize(path.relative(base, file.path));
   return path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
 }
 
