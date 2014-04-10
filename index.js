@@ -62,7 +62,7 @@ module.exports = function (file, options) {
             // define([...], function (...) {});
             var dependencies = node.arguments[0],
                 factory = node.arguments[1];
-            tast = transformDefinition(baseUrl, id, dependencies, factory, ast);
+            tast = transformDefinition(baseUrl, id, dependencies, factory, ast, file);
             this.break();
           } else if (node.arguments.length === 3 &&
                      node.arguments[0].type === 'Literal' &&
@@ -73,7 +73,7 @@ module.exports = function (file, options) {
                 dependencies = node.arguments[1],
                 factory = node.arguments[2];
             console.warn('ignoring manually specified "%s" identifier in "%s"', identifier.value, file);
-            tast = transformDefinition(baseUrl, id, dependencies, factory, ast);
+            tast = transformDefinition(baseUrl, id, dependencies, factory, ast, file);
             this.break();
           }
         } else if (isReturn(node)) {
@@ -146,9 +146,10 @@ function transformIdentifier(moduleIdByName, rootIdByName, name) {
   return identifier;
 }
 
-function transformDefinition(baseUrl, id, dependencies, factory, ast) {
+
+function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
   var identifiers = dependencies.elements.map(function (el) {
-    return pathToNamespace(baseUrl, el.value);
+    return dependencyPath(baseUrl, file.path || file, el.value);
   });
 
   var moduleIdByName = {};
@@ -203,10 +204,16 @@ function transformDefinition(baseUrl, id, dependencies, factory, ast) {
   return createProgram(id, requires.concat(factory.body.body), ast);
 }
 
+function dependencyPath(base, parentFile, dependency) {
+    var path = parentFile.replace(/\w+?\.js$/, '');
+    dependency = path + dependency;
+    return pathToNamespace(base, dependency);
+}
+
 function pathToNamespace(base, file) {
-  // FIXME: Make this more robust
   var p = path.normalize(path.relative(base, file.path || file));
-  return path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
+  var r = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
+  return r;
 }
 
 function isDefine(node) {
