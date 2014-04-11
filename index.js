@@ -162,12 +162,10 @@ function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
   estraverse.replace(ast, {
     leave: function (node, parent) {
       var result = null;
-      // For example (right)
-      // module.x.x -> $$ns$$module.x.x
-      // {x: module}  -> {x: $$ns$$module}
-      // but not (wrong)
-      // x.module.x -> x.$$ns$$module.x
-      // {module: x}  -> {$$ns$$module: x}
+      // Correct  : module.x.x  -> $$ns$$module.x.x
+      // Incorrect: x.module.x  -> x.$$ns$$module.x
+      // Correct  : {x: module} -> {x: $$ns$$module}
+      // Incorrect: {module: x} -> {$$ns$$module: x}
       if (node.type === 'Property') {
         // Transform only value identifiers of a Property.
         if (node.value.type === 'Identifier') {
@@ -178,7 +176,7 @@ function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
             result = node;
           }
         }
-      } else if (node.type === 'MemberExpression') {
+      } else if (node.type === 'MemberExpression' && !node.computed) {
         // Transform only the first identifier in a MemberExpression.
         if (node.object.type === 'Identifier') {
           var name = node.object.name;
@@ -188,7 +186,7 @@ function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
             result = node;
           }
         }
-      } else if (parent.type !== 'MemberExpression'
+      } else if (!(parent.type === 'MemberExpression' && !parent.computed)
                  && parent.type !== 'Property'
                  && node.type === 'Identifier') {
         // Transform other identifiers that are not Property/MemberExpression.
