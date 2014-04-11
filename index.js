@@ -205,7 +205,7 @@ function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
 }
 
 function dependencyPath(base, parentFile, dependency) {
-    var path = parentFile.replace(/\w+?\.js$/, '');
+    var path = parentFile.replace(/[^\/]+\.js$/, '');
     dependency = path + dependency;
     return pathToNamespace(base, dependency);
 }
