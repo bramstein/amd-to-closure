@@ -133,7 +133,7 @@ function buildRootIdByName(id, ast) {
 function namespacedNameFromId(id) {
   var namespace = id.slice(0, id.length - 1);
   var name = id[id.length - 1];
-  return '$$' + namespace.join('$') + '$$' + name;
+  return namespace.join('$') + name;
 }
 
 function transformIdentifier(moduleIdByName, rootIdByName, name) {
@@ -209,9 +209,13 @@ function dependencyPath(base, parentFile, dependency) {
 }
 
 function pathToNamespace(base, file) {
-  var p = path.normalize(path.relative(base, file.path || file));
-  var r = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
-  return r;
+  // FIXME: Make this more robust
+  var p = path.normalize(path.relative(base, file));
+  var namespace = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
+  var moduleName = namespace.pop();
+  moduleName += '$$';
+  namespace.push(moduleName);
+  return namespace;
 }
 
 function isDefine(node) {
