@@ -22,7 +22,7 @@ module.exports = function (file, options) {
     var ast = esprima.parse(data, format ? { range: true, tokens: true, comment: true } : {}),
         isAMD = false,
         tast = null,
-        id = pathToNamespace(baseUrl, file);
+        id = pathToNamespace(baseUrl, file.path);
 
     estraverse.replace(ast, {
       enter: function (node) {
