@@ -22,7 +22,7 @@ module.exports = function (file, options) {
     var ast = esprima.parse(data, format ? { range: true, tokens: true, comment: true } : {}),
         isAMD = false,
         tast = null,
-        id = pathToNamespace(baseUrl, file.path);
+        id = pathToNamespace(baseUrl, file);
 
     estraverse.replace(ast, {
       enter: function (node) {
@@ -149,7 +149,7 @@ function transformIdentifier(moduleIdByName, rootIdByName, name) {
 
 function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
   var identifiers = dependencies.elements.map(function (el) {
-    return dependencyPath(baseUrl, file.path || file, el.value);
+    return pathToNamespace(baseUrl, el.value);
   });
 
   var moduleIdByName = {};
@@ -202,15 +202,12 @@ function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
   return createProgram(id, requires.concat(factory.body.body), ast);
 }
 
-function dependencyPath(base, parentFile, dependency) {
-    var path = parentFile.replace(/[^\/]+\.js$/, '');
-    dependency = path + dependency;
-    return pathToNamespace(base, dependency);
-}
-
+/**
+ * @param {String} base
+ * @param {File | String} file
+ */
 function pathToNamespace(base, file) {
-  // FIXME: Make this more robust
-  var p = path.normalize(path.relative(base, file));
+  var p = path.normalize(path.relative(base, file.path || file));
   var namespace = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
   var moduleName = namespace.pop();
   moduleName += '$$';
