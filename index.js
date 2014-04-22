@@ -149,7 +149,7 @@ function transformIdentifier(moduleIdByName, rootIdByName, name) {
 
 function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
   var identifiers = dependencies.elements.map(function (el) {
-    return pathToNamespace(baseUrl, el.value);
+    return pathToNamespace(baseUrl, baseUrl + el.value);
   });
 
   var moduleIdByName = {};
@@ -208,7 +208,7 @@ function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
  */
 function pathToNamespace(base, file) {
   var p = path.normalize(path.relative(base, file.path || file));
-  var namespace = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
+  var namespace = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').replace(/^\./, '').split(path.sep);
   var moduleName = namespace.pop();
   moduleName += '$$';
   namespace.push(moduleName);
