@@ -220,10 +220,10 @@ function pathToNamespace(base, file, globalNamespace, foreignLibs) {
         }
     });
   }
+  var p = path.normalize(path.relative(base, file.path || file));
   if (isForeignLib) {
-    var namespace = (file.path || file).replace(/-/g, '_').split(path.sep);
+    var namespace = p.replace(/-/g, '_').split(path.sep);
   } else {
-    var p = path.normalize(path.relative(base, file.path || file));
     var namespace = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
   }
   var moduleName = namespace.pop();
