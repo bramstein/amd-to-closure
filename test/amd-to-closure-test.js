@@ -2,9 +2,14 @@ var expect = require('expect.js'),
     transform = require('../index'),
     es = require('event-stream');
 
-function tr(id, str, callback) {
+function tr(id, str, options, callback) {
+  if (!callback) {
+    callback = options;
+  }
   var transformStream = transform(id, {
-        format: false
+        format: false,
+        namespace: options && options.namespace || '',
+        foreignLibs: options && options.foreignLibs
       }),
       inputStream = es.readArray([str]),
       outputStream = es.writeArray(function (err, array) {
@@ -62,6 +67,30 @@ describe('Convert AMD to Closure Compiler syntax', function () {
   it('transforms an object passed to define', function (done) {
     tr('ns', 'define({ hello: "world" });', function (err, data) {
       expect(data).to.eql("goog.provide('ns$$');\nns$$ = { hello: 'world' };");
+      done(err);
+    });
+  });
+
+  it('transforms a factory with global namespace option', function (done) {
+    tr('ns', 'define(["bs", "as"], function (bs, as) { return bs + as; });',
+      {namespace: 'gns'}, function (err, data) {
+      expect(data).to.eql("goog.provide('gns.ns$$');\ngoog.require('gns.bs$$');\ngoog.require('gns.as$$');\ngns.ns$$ = gns.bs$$ + gns.as$$;");
+      done(err);
+    });
+  });
+
+  it('transforms a factory with foreign lib', function (done) {
+    tr('ns/bs', 'define(["fl/as"], function (bs) { return bs; });',
+      {foreignLibs: ['fl']}, function (err, data) {
+      expect(data).to.eql("goog.provide('ns.bs$$');\ngoog.require('fl.as$$');\nns.bs$$ = fl.as$$;");
+      done(err);
+    });
+  });
+
+  it('transforms a factory with foreign lib and global namespace', function (done) {
+    tr('ns', 'define(["fl/as"], function (bs) { return bs; });',
+      {namespace: 'gns', foreignLibs: ['fl']}, function (err, data) {
+      expect(data).to.eql("goog.provide('gns.ns$$');\ngoog.require('fl.as$$');\ngns.ns$$ = fl.as$$;");
       done(err);
     });
   });
