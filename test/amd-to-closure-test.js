@@ -88,9 +88,9 @@ describe('Convert AMD to Closure Compiler syntax', function () {
   });
 
   it('transforms a factory with foreign lib and global namespace', function (done) {
-    tr('ns', 'define(["fl/as"], function (bs) { return bs; });',
+    tr('ns/bs', 'define(["fl/as"], function (bs) { return bs; });',
       {namespace: 'gns', foreignLibs: ['fl']}, function (err, data) {
-      expect(data).to.eql("goog.provide('gns.ns$$');\ngoog.require('fl.as$$');\ngns.ns$$ = fl.as$$;");
+      expect(data).to.eql("goog.provide('gns.ns.bs$$');\ngoog.require('fl.as$$');\ngns.ns.bs$$ = fl.as$$;");
       done(err);
     });
   });
