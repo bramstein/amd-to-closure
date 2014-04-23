@@ -9,8 +9,10 @@ var through = require('through'),
 module.exports = function (file, options) {
   var data = '',
       stream = through(write, end),
-      baseUrl = options && options.baseUrl || '.',
-      format = (options && options.format === false) ? false : true;
+      baseUrl = options && options.baseUrl || '',
+      format = (options && options.format === false) ? false : true,
+      globalNamespace = options && options.namespace || '',
+      foreignLibs = options && options.foreignLibs;
 
   return stream;
 
@@ -22,7 +24,7 @@ module.exports = function (file, options) {
     var ast = esprima.parse(data, format ? { range: true, tokens: true, comment: true } : {}),
         isAMD = false,
         tast = null,
-        id = pathToNamespace(baseUrl, file);
+        id = pathToNamespace(baseUrl, file, globalNamespace);
 
     estraverse.replace(ast, {
       enter: function (node) {
@@ -62,7 +64,7 @@ module.exports = function (file, options) {
             // define([...], function (...) {});
             var dependencies = node.arguments[0],
                 factory = node.arguments[1];
-            tast = transformDefinition(baseUrl, id, dependencies, factory, ast, file);
+            tast = transformDefinition(baseUrl, id, dependencies, factory, ast, file, globalNamespace, foreignLibs);
             this.break();
           } else if (node.arguments.length === 3 &&
                      node.arguments[0].type === 'Literal' &&
@@ -73,7 +75,7 @@ module.exports = function (file, options) {
                 dependencies = node.arguments[1],
                 factory = node.arguments[2];
             console.warn('ignoring manually specified "%s" identifier in "%s"', identifier.value, file);
-            tast = transformDefinition(baseUrl, id, dependencies, factory, ast, file);
+            tast = transformDefinition(baseUrl, id, dependencies, factory, ast, file, globalNamespace, foreignLibs);
             this.break();
           }
         } else if (isReturn(node)) {
@@ -147,9 +149,9 @@ function transformIdentifier(moduleIdByName, rootIdByName, name) {
 }
 
 
-function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
+function transformDefinition(baseUrl, id, dependencies, factory, ast, file, globalNamespace, foreignLibs) {
   var identifiers = dependencies.elements.map(function (el) {
-    return pathToNamespace(baseUrl, baseUrl + el.value);
+    return pathToNamespace(baseUrl, baseUrl + el.value, globalNamespace, foreignLibs);
   });
 
   var moduleIdByName = {};
@@ -205,13 +207,31 @@ function transformDefinition(baseUrl, id, dependencies, factory, ast, file) {
 /**
  * @param {String} base
  * @param {File | String} file
+ * @param {String} globalNamespace
+ * @param {Array} foreignLibs
  */
-function pathToNamespace(base, file) {
-  var p = path.normalize(path.relative(base, file.path || file));
-  var namespace = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').replace(/^\./, '').split(path.sep);
+function pathToNamespace(base, file, globalNamespace, foreignLibs) {
+  var isForeignLib = false;
+  if (foreignLibs && foreignLibs.length) {
+    foreignLibs.forEach(function(lib) {
+        var test = new RegExp('^' + lib);
+        if (test.test(lib)) {
+            isForeignLib = true;
+        }
+    });
+  }
+  if (isForeignLib) {
+    var namespace = (file.path || file).replace(/-/g, '_').split(path.sep);
+  } else {
+    var p = path.normalize(path.relative(base, file.path || file));
+    var namespace = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
+  }
   var moduleName = namespace.pop();
   moduleName += '$$';
   namespace.push(moduleName);
+  if (globalNamespace && globalNamespace.length && !isForeignLib) {
+      namespace.splice(0, 0, globalNamespace);
+  }
   return namespace;
 }
 
