@@ -14,6 +14,13 @@ module.exports = function (file, options) {
       globalNamespace = options && options.namespace || '',
       foreignLibs = options && options.foreignLibs;
 
+  // We need trailing slash in baseUrl
+  if (baseUrl && baseUrl.length) {
+    if (baseUrl.search(/\/$/) === -1) {
+      baseUrl += '/';
+    }
+  }
+
   return stream;
 
   function write(buf) {
@@ -211,27 +218,32 @@ function transformDefinition(baseUrl, id, dependencies, factory, ast, file, glob
  * @param {Array} foreignLibs
  */
 function pathToNamespace(base, file, globalNamespace, foreignLibs) {
+  var p = path.normalize(path.relative(base, file.path || file));
+
   var isForeignLib = false;
   if (foreignLibs && foreignLibs.length) {
     foreignLibs.forEach(function(lib) {
         var test = new RegExp('^' + lib);
-        if (test.test(lib)) {
+        if (test.test(p)) {
             isForeignLib = true;
         }
     });
   }
-  var p = path.normalize(path.relative(base, file.path || file));
+
   if (isForeignLib) {
-    var namespace = p.replace(/-/g, '_').split(path.sep);
+    namespace = p.replace(/-/g, '_').split(path.sep);
   } else {
-    var namespace = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
+    namespace = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
   }
+
   var moduleName = namespace.pop();
   moduleName += '$$';
   namespace.push(moduleName);
+
   if (globalNamespace && globalNamespace.length && !isForeignLib) {
       namespace.splice(0, 0, globalNamespace);
   }
+
   return namespace;
 }
 
