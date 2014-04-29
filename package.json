@@ -1,6 +1,6 @@
 {
   "name": "amd-to-closure",
-  "version": "0.1.1",
+  "version": "0.2.5",
   "description": "Transform AMD modules to Google Closure modules",
   "main": "index.js",
   "directories": {
@@ -8,7 +8,7 @@
     "bin": "bin"
   },
   "dependencies": {
-    "escodegen": "~0.0.24",
+    "escodegen": "https://github.com/evindor/escodegen/tarball/master",
     "esprima": "~1.0.3",
     "estraverse": "~1.1.2-1",
     "through": "~2.3.4"

@@ -9,8 +9,17 @@ var through = require('through'),
 module.exports = function (file, options) {
   var data = '',
       stream = through(write, end),
-      baseUrl = options && options.baseUrl || '.',
-      format = (options && options.format === false) ? false : true;
+      baseUrl = options && options.baseUrl || '',
+      format = (options && options.format === false) ? false : true,
+      globalNamespace = options && options.namespace || '',
+      foreignLibs = options && options.foreignLibs;
+
+  // We need trailing slash in baseUrl
+  if (baseUrl && baseUrl.length) {
+    if (baseUrl.search(/\/$/) === -1) {
+      baseUrl += '/';
+    }
+  }
 
   return stream;
 
@@ -22,7 +31,7 @@ module.exports = function (file, options) {
     var ast = esprima.parse(data, format ? { range: true, tokens: true, comment: true } : {}),
         isAMD = false,
         tast = null,
-        id = pathToNamespace(baseUrl, file);
+        id = pathToNamespace(baseUrl, file, globalNamespace);
 
     estraverse.replace(ast, {
       enter: function (node) {
@@ -62,32 +71,7 @@ module.exports = function (file, options) {
             // define([...], function (...) {});
             var dependencies = node.arguments[0],
                 factory = node.arguments[1];
-
-            var identifiers = dependencies.elements.map(function (el) {
-              return pathToNamespace(baseUrl, el.value);
-            });
-
-            var params = factory.params.map(function (p) {
-              return p.name;
-            });
-
-            var requires = identifiers.map(function (id) {
-              return createRequire(id);
-            });
-
-            estraverse.replace(ast, {
-              leave: function (node) {
-                if (isIdentifier(node)) {
-                  for (var i = 0; i < params.length; i += 1) {
-                    if (node.name === params[i]) {
-                      return createNamespace(identifiers[i]);
-                    }
-                  }
-                }
-              }
-            });
-
-            tast = createProgram(id, requires.concat(factory.body.body), ast);
+            tast = transformDefinition(baseUrl, id, dependencies, factory, ast, file, globalNamespace, foreignLibs);
             this.break();
           } else if (node.arguments.length === 3 &&
                      node.arguments[0].type === 'Literal' &&
@@ -97,34 +81,8 @@ module.exports = function (file, options) {
             var identifier = node.arguments[0],
                 dependencies = node.arguments[1],
                 factory = node.arguments[2];
-
             console.warn('ignoring manually specified "%s" identifier in "%s"', identifier.value, file);
-
-            var identifiers = dependencies.elements.map(function (el) {
-              return pathToNamespace(baseUrl, el.value);
-            });
-
-            var params = factory.params.map(function (p) {
-              return p.name;
-            });
-
-            var requires = identifiers.map(function (id) {
-              return createRequire(id);
-            });
-
-            estraverse.replace(ast, {
-              leave: function (node) {
-                if (isIdentifier(node)) {
-                  for (var i = 0; i < params.length; i += 1) {
-                    if (node.name === params[i]) {
-                      return createNamespace(identifiers[i]);
-                    }
-                  }
-                }
-              }
-            });
-
-            tast = createProgram(id, requires.concat(factory.body.body), ast);
+            tast = transformDefinition(baseUrl, id, dependencies, factory, ast, file, globalNamespace, foreignLibs);
             this.break();
           }
         } else if (isReturn(node)) {
@@ -162,10 +120,131 @@ module.exports = function (file, options) {
   }
 };
 
-function pathToNamespace(base, file) {
-  // FIXME: Make this more robust
-  var p = path.normalize(path.relative(base, file));
-  return path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
+function buildRootIdByName(id, ast) {
+  var rootIdByName = {};
+  estraverse.traverse(ast, {
+    enter: function (node, parent) {
+      if (node.type === 'FunctionExpression' ||
+          node.type === 'FunctionDeclaration') {
+        return estraverse.VisitorOption.Skip;
+      }
+    },
+    leave: function (node, parent) {
+      if (node.type === 'VariableDeclarator' ||
+          node.type === 'FunctionDeclaration') {
+        rootIdByName[node.id.name] = id.concat([node.id.name]);
+      }
+    }
+  });
+  return rootIdByName;
+}
+
+function namespacedNameFromId(id) {
+  var namespace = id.slice(0, id.length - 1);
+  var name = id[id.length - 1];
+  return namespace.join('$') + name;
+}
+
+function transformIdentifier(moduleIdByName, rootIdByName, name) {
+  var identifier = null;
+  if (moduleIdByName[name]) {
+    identifier = createNamespace(moduleIdByName[name]);
+  } else if (rootIdByName[name]) {
+    identifier = createProperty(namespacedNameFromId(rootIdByName[name]));
+  }
+  return identifier;
+}
+
+
+function transformDefinition(baseUrl, id, dependencies, factory, ast, file, globalNamespace, foreignLibs) {
+  var identifiers = dependencies.elements.map(function (el) {
+    return pathToNamespace(baseUrl, baseUrl + el.value, globalNamespace, foreignLibs);
+  });
+
+  var moduleIdByName = {};
+  factory.params.forEach(function (p, i) {
+    moduleIdByName[p.name] = identifiers[i];
+  });
+
+  var rootIdByName = buildRootIdByName(id, factory.body);
+
+  estraverse.replace(ast, {
+    leave: function (node, parent) {
+      var result = null;
+      // Correct  : module.x.x  -> $$ns$$module.x.x
+      // Incorrect: x.module.x  -> x.$$ns$$module.x
+      // Correct  : {x: module} -> {x: $$ns$$module}
+      // Incorrect: {module: x} -> {$$ns$$module: x}
+      if (node.type === 'Property') {
+        // Transform only value identifiers of a Property.
+        if (node.value.type === 'Identifier') {
+          var name = node.value.name;
+          var identifier = transformIdentifier(moduleIdByName, rootIdByName, name);
+          if (identifier) {
+            node.value = identifier;
+            result = node;
+          }
+        }
+      } else if (node.type === 'MemberExpression' && !node.computed) {
+        // Transform only the first identifier in a MemberExpression.
+        if (node.object.type === 'Identifier') {
+          var name = node.object.name;
+          var identifier = transformIdentifier(moduleIdByName, rootIdByName, name);
+          if (identifier) {
+            node.object = identifier;
+            result = node;
+          }
+        }
+      } else if (!(parent.type === 'MemberExpression' && !parent.computed)
+                 && parent.type !== 'Property'
+                 && node.type === 'Identifier') {
+        // Transform other identifiers that are not Property/MemberExpression.
+        result = transformIdentifier(moduleIdByName, rootIdByName, node.name);
+      }
+      if (result) {
+        return result;
+      }
+    }
+  });
+
+  var requires = identifiers.map(createRequire);
+  return createProgram(id, requires.concat(factory.body.body), ast);
+}
+
+/**
+ * @param {String} base
+ * @param {File | String} file
+ * @param {String} globalNamespace
+ * @param {Array} foreignLibs
+ */
+function pathToNamespace(base, file, globalNamespace, foreignLibs) {
+  var p = path.normalize(path.relative(base, file.path || file));
+
+  var isForeignLib = false;
+  if (foreignLibs && foreignLibs.length) {
+    foreignLibs.forEach(function(lib) {
+        var test = new RegExp('^' + lib + '\/');
+        if (test.test(p)) {
+            isForeignLib = true;
+        }
+    });
+  }
+
+  if (isForeignLib) {
+    namespace = p.replace(/-/g, '_').split(path.sep);
+  } else {
+    namespace = path.join(path.dirname(p), path.basename(p, '.js')).replace(/-/g, '_').split(path.sep);
+  }
+
+  var moduleName = namespace.pop();
+  moduleName += '$$';
+  namespace.push(moduleName);
+
+  if (globalNamespace && globalNamespace.length && !isForeignLib) {
+      namespace.splice(0, 0, globalNamespace);
+  }
+
+  return namespace;
 }
 
 function isDefine(node) {
