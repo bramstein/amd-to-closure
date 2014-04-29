@@ -223,7 +223,7 @@ function pathToNamespace(base, file, globalNamespace, foreignLibs) {
   var isForeignLib = false;
   if (foreignLibs && foreignLibs.length) {
     foreignLibs.forEach(function(lib) {
-        var test = new RegExp('^' + lib);
+        var test = new RegExp('^' + lib + '\/');
         if (test.test(p)) {
             isForeignLib = true;
         }
